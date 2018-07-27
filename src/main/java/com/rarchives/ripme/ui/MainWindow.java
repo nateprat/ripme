@@ -614,19 +614,36 @@ public final class MainWindow implements Runnable, RipStatusHandler {
                 update();
             }
             private void update() {
+                ArrayList<String> urlLinks = new ArrayList<>();
+                String urlPath = null;
                 try {
-                    String urlText = ripTextfield.getText().trim();
-                    if (urlText.equals("")) {
+                    urlLinks.add(ripTextfield.getText().trim());
+                    if (urlLinks.get(0).equals("")) {
                         return;
                     }
-                    if (!urlText.startsWith("http")) {
-                        urlText = "http://" + urlText;
+                    if (ripTextfield.getText().trim().endsWith(".txt")) {
+                        String resource = ripTextfield.getText().trim();
+                        File textFile = new File(resource);
+                        if (textFile.exists()) {
+                            statusWithColor("File detected - " + textFile.getPath(), Color.GREEN);
+                            urlLinks = Utils.getLinksFromTxtFile(textFile.getPath());
+                        }
                     }
-                    URL url = new URL(urlText);
-                    AbstractRipper ripper = AbstractRipper.getRipper(url);
-                    statusWithColor(ripper.getHost() + " album detected", Color.GREEN);
+                    for (String urlText: urlLinks) {
+                        if (!urlText.startsWith("http")) {
+                            urlText = "http://" + urlText;
+                        }
+                        urlPath = urlText;
+                        URL url = new URL(urlText);
+                        AbstractRipper ripper = AbstractRipper.getRipper(url);
+                        if (urlLinks.size() == 1) {
+                            statusWithColor(ripper.getHost() + " album detected", Color.GREEN);
+                        } else {
+                            statusWithColor("All links in file are retrievable - File: " + ripTextfield.getText(), Color.GREEN);
+                        }
+                    }
                 } catch (Exception e) {
-                    statusWithColor("Can't rip this URL: " + e.getMessage(), Color.RED);
+                    statusWithColor("Can't rip this URL: " + e.getMessage() + " - Link: " + urlPath, Color.RED);
                 }
             }
         });
@@ -1074,6 +1091,9 @@ public final class MainWindow implements Runnable, RipStatusHandler {
     @SuppressWarnings("unchecked")
     private void ripNextAlbum() {
         isRipping = true;
+        int numberOfLinks = 1;
+        //arrayList to store links in .txt files
+        ArrayList<String> nextAlbum = new ArrayList<>();
         // Save current state of queue to configuration.
         Utils.setConfigList("queue", (Enumeration<Object>) queueListModel.elements());
 
@@ -1082,18 +1102,29 @@ public final class MainWindow implements Runnable, RipStatusHandler {
             isRipping = false;
             return;
         }
-        String nextAlbum = (String) queueListModel.remove(0);
+        nextAlbum.add((String) queueListModel.remove(0));
         updateQueueLabel();
-        Thread t = ripAlbum(nextAlbum);
-        if (t == null) {
-            try {
-                Thread.sleep(500);
-            } catch (InterruptedException ie) {
-                LOGGER.error(rb.getString("interrupted.while.waiting.to.rip.next.album"), ie);
+        if (nextAlbum.get(0).endsWith(".txt")) {
+            String filePath = nextAlbum.get(0);
+            LOGGER.info("Directory found, getting stored URLs - File: " + filePath);
+            nextAlbum = Utils.getLinksFromTxtFile(nextAlbum.get(0));
+            LOGGER.info("Found " + nextAlbum.size() + " links in file: " + filePath);
+        }
+        if (nextAlbum.size() > 0) {
+            numberOfLinks = nextAlbum.size();
+        }
+        for (int i = 0; i < numberOfLinks; i++) {
+            Thread t = ripAlbum(nextAlbum.get(i));
+            if (t == null) {
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException ie) {
+                    LOGGER.error(rb.getString("interrupted.while.waiting.to.rip.next.album"), ie);
+                }
+                ripNextAlbum();
+            } else {
+                t.start();
             }
-            ripNextAlbum();
-        } else {
-            t.start();
         }
     }
 
@@ -1110,6 +1141,9 @@ public final class MainWindow implements Runnable, RipStatusHandler {
             urlString = "http://" + urlString;
         }
         URL url = null;
+        if (urlString.endsWith(".txt")) {
+            System.out.println("TXT FILE FOUND");
+        }
         try {
             url = new URL(urlString);
         } catch (MalformedURLException e) {

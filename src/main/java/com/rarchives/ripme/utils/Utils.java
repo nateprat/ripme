@@ -11,10 +11,7 @@ import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.Clip;
 import javax.sound.sampled.Line;
 import javax.sound.sampled.LineEvent;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UnsupportedEncodingException;
+import java.io.*;
 import java.lang.reflect.Constructor;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -729,6 +726,22 @@ public class Utils {
                 Utils.bytesToHumanReadable(bytesCompleted) +
                 " / " +
                 Utils.bytesToHumanReadable(bytesTotal);
+    }
+
+    public static ArrayList<String> getLinksFromTxtFile(String path) {
+        ArrayList<String> links = new ArrayList<>();
+        try (BufferedReader br = new BufferedReader(new FileReader(path))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                if (line.endsWith(".jpg") || line.endsWith(".png")) {
+                    line = line.substring(0, line.length() - 4);
+                }
+                links.add(line);
+            }
+        } catch (IOException e) {
+            LOGGER.error(e);
+        }
+        return links;
     }
 
 }
